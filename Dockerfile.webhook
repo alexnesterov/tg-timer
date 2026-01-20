@@ -1,0 +1,34 @@
+FROM golang:1.21-alpine AS builder
+
+WORKDIR /app
+
+# Copy go mod files
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build webhook binary
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o tg-timer-webhook ./cmd/tg-timer-webhook
+
+# Final stage
+FROM alpine:latest
+
+RUN apk --no-cache add ca-certificates curl
+
+WORKDIR /root/
+
+# Copy binary from builder
+COPY --from=builder /app/tg-timer-webhook .
+
+# Health check endpoint
+RUN echo 'package main\n\nimport (\n    "fmt"\n    "net/http"\n)\n\nfunc main() {\n    http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {\n        w.WriteHeader(http.StatusOK)\n        fmt.Fprint(w, "OK")\n    })\n    http.ListenAndServe(":8080", nil)\n}' > health.go && go build health.go && rm health.go
+
+# Expose port
+EXPOSE 8443
+
+# Run the binary
+CMD ["./tg-timer-webhook"]

@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  tg-timer-webhook:
+    build:
+      context: .
+      dockerfile: Dockerfile.webhook
+    ports:
+      - '8443:8443'
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - WEBHOOK_URL=${WEBHOOK_URL}
+      - PORT=8443
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:8443/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./ssl:/etc/nginx/ssl
+    depends_on:
+      - tg-timer-webhook
+    restart: unless-stopped
